@@ -34,6 +34,8 @@ Surface reaches currently target hand-joint positions on static cuboids. They do
 not model grasping, hand orientation or contact forces. Collision and balance are
 not fully proven. Held-pose accuracy is distinct from tracking during a transition.
 
+For running on shared GPU infrastructure, see [shared deployment](docs/deployment.md).
+
 ## Install
 
 You need an NVIDIA GPU with a compatible driver and the MotionBricks TensorRT

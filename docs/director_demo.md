@@ -129,6 +129,9 @@ means viewed from above. A view-independent “behind” means the object's +X s
 
 ## Run the web app
 
+For shared GPU scheduling and stopping unused allocations, see
+[shared deployment](deployment.md).
+
 The backend requires an NVIDIA GPU and MotionBricks dependencies on Linux or
 Windows. The supplied TensorRT runtime does not run on macOS. The frontend can
 render in a normal browser on a laptop or phone.

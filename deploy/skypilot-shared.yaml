@@ -1,0 +1,16 @@
+# Submit with `sky exec` on an existing shared cluster (see docs/deployment.md).
+# A fractional job request does not provision a fractional VM or isolate GPU usage.
+name: gemini-directs-motionbricks
+
+resources:
+  accelerators: A6000:0.25
+
+envs:
+  MOTIONBRICKS_CHECKOUT: null
+  PYGLET_HEADLESS: 'true'
+  PYOPENGL_PLATFORM: egl
+
+run: |
+  set -eu
+  cd "$MOTIONBRICKS_CHECKOUT"
+  exec .venv/bin/python -m app.director_web
