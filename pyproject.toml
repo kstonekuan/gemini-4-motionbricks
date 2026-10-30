@@ -1,0 +1,27 @@
+[project]
+name = "gemini-motionbricks-director"
+version = "0.1.0"
+description = "A Gemini spatial character director and custom browser viewer for MotionBricks"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+    "google-genai>=2.34,<3",
+    "pydantic>=2.12,<3",
+    "httpx>=0.28,<1",
+    "pydantic-settings>=2.12,<3",
+    "fastapi>=0.128,<1",
+    "uvicorn[standard]>=0.40,<1",
+    "pillow>=13.0.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+
+[dependency-groups]
+dev = ["ruff>=0.14", "ty>=0.0.1"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "motionbricks"]

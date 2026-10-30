@@ -1,0 +1,10 @@
+__pycache__/
+*.py[oc]
+.venv/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+web/node_modules/
+web/dist/
+*.log

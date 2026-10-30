@@ -1,0 +1,443 @@
+diff --git a/app/runtime/common/character.py b/app/runtime/common/character.py
+index 292c537..9734964 100644
+--- a/app/runtime/common/character.py
++++ b/app/runtime/common/character.py
+@@ -5,8 +5,8 @@
+ 
+ from __future__ import annotations
+ 
+-from abc import ABC, abstractmethod
+ import math
++from abc import ABC, abstractmethod
+ from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+@@ -28,8 +28,8 @@ from .motion import (
+     MovementControl,
+     PlaybackSource,
+     character_start_position_and_facing,
+-    load_locomotion_mode,
+     ground_direction,
++    load_locomotion_mode,
+     make_animation_clip,
+ )
+ from .state_machine import StateMachine
+@@ -109,9 +109,7 @@ class BaseCharacter(ABC):
+         self._clip_playback_time = 0.0
+         self._clip_loop = False
+ 
+-        initial_position, initial_facing = character_start_position_and_facing(
+-            initial_transform
+-        )
++        initial_position, initial_facing = character_start_position_and_facing(initial_transform)
+         self.movement = MovementControl(initial_facing)
+         self.character_ground_position = initial_position
+         self.actual_velocity = np.zeros(3, dtype=np.float32)
+@@ -173,10 +171,7 @@ class BaseCharacter(ABC):
+ 
+     def clip_transition_ends_within(self, delta_time: float) -> bool:
+         """Return whether a clip transition reaches its transition point within delta_time (in seconds)."""
+-        return (
+-            self._playback_source is PlaybackSource.CLIP_TRANSITION
+-            and self.time_to_transition() <= delta_time
+-        )
++        return self._playback_source is PlaybackSource.CLIP_TRANSITION and self.time_to_transition() <= delta_time
+ 
+     def clip_ends_within(self, delta_time: float) -> bool:
+         """Return whether the current clip ends within delta_time. Looping clips never end."""
+@@ -261,15 +256,20 @@ class BaseCharacter(ABC):
+     def generate_clip_transition(
+         self,
+         clip: AnimationClip,
++        *,
++        ground_position: np.ndarray | None = None,
+     ) -> None:
+         """Place a clip ahead of the character and generate motion to its first frame."""
+ 
+         self._current_clip = clip
+-        clip_ground_position = self.character_ground_position + self.actual_velocity
++        clip_ground_position = (
++            self.character_ground_position + self.actual_velocity if ground_position is None else ground_position
++        )
+         self._align_clip(
+             clip,
+             clip_ground_position,
+             self.movement.last_input_facing,
++            align_source_heading=ground_position is not None,
+         )
+         for frame in range(MODEL_POSES_PER_TOKEN):
+             clip.animation.sample(
+@@ -308,9 +308,15 @@ class BaseCharacter(ABC):
+         clip: AnimationClip,
+         ground_position: np.ndarray,
+         facing_direction: np.ndarray,
++        *,
++        align_source_heading: bool = False,
+     ) -> None:
+         # Turn the clip from the direction clips start facing to the requested facing.
+-        yaw = math.atan2(facing_direction[1], facing_direction[0]) - CLIP_FACING_YAW
++        source_heading = CLIP_FACING_YAW
++        if align_source_heading:
++            source_forward = wp.quat_rotate(clip.source_ground.q, self.root_forward_axis)
++            source_heading = math.atan2(source_forward[1], source_forward[0])
++        yaw = math.atan2(facing_direction[1], facing_direction[0]) - source_heading
+         facing_rotation = wp.quat_from_axis_angle(
+             wp.vec3(0.0, 0.0, 1.0),
+             yaw,
+@@ -381,7 +387,8 @@ class BaseCharacter(ABC):
+ 
+         forward = wp.transform_vector(_root_transform(self.current_pose), self.root_forward_axis)
+         return ground_direction(
+-            np.array([forward[0], forward[1], 0.0], dtype=np.float32), self.movement.current_facing,
++            np.array([forward[0], forward[1], 0.0], dtype=np.float32),
++            self.movement.current_facing,
+         )
+ 
+     def face_pose(self) -> None:
+@@ -405,8 +412,10 @@ class BaseCharacter(ABC):
+         if self._playback_source is PlaybackSource.CLIP:
+             clip = self._current_clip
+             position = sample_root_position(
+-                clip.root_positions, self._clip_playback_time,
+-                clip.animation.sample_rate, clip.root_offset,
++                clip.root_positions,
++                self._clip_playback_time,
++                clip.animation.sample_rate,
++                clip.root_offset,
+             )
+         else:
+             position = self.player.current_root_position()
+diff --git a/app/runtime/common/motion.py b/app/runtime/common/motion.py
+index dedb7d2..9501e94 100644
+--- a/app/runtime/common/motion.py
++++ b/app/runtime/common/motion.py
+@@ -5,18 +5,31 @@
+ 
+ from __future__ import annotations
+ 
++import math
+ from dataclasses import dataclass
+ from enum import Enum
+-import math
+ from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+ import numpy as np
+ import warp as wp
+ 
+-from motionbricks.model.contract import MODEL_MAX_TOKEN_COUNT, MODEL_MIN_TOKEN_COUNT, MODEL_POSES_PER_TOKEN, ModelRig
+-from motionbricks.runtime.blend_spaces import BlendSpace, BlendSpaceType, prepare_directional_poses
+-from motionbricks.utils.math_utils import critical_spring_angle, critical_spring_damper_exact, project_to_plane
++from motionbricks.model.contract import (
++    MODEL_MAX_TOKEN_COUNT,
++    MODEL_MIN_TOKEN_COUNT,
++    MODEL_POSES_PER_TOKEN,
++    ModelRig,
++)
++from motionbricks.runtime.blend_spaces import (
++    BlendSpace,
++    BlendSpaceType,
++    prepare_directional_poses,
++)
++from motionbricks.utils.math_utils import (
++    critical_spring_angle,
++    critical_spring_damper_exact,
++    project_to_plane,
++)
+ 
+ if TYPE_CHECKING:
+     from motionbricks.animation.animation_buffer import AnimationBuffer
+@@ -65,12 +78,14 @@ class LocomotionCommand:
+         use_max_speed: Base the speed on the mode's maximum speed instead of its default
+             speed.
+         requested_mode: Name of the mode to switch to. None keeps the current mode.
++        stop_position: Optional exact ground target for the transition into idle.
+     """
+ 
+     facing_direction: np.ndarray
+     movement: np.ndarray | None
+     use_max_speed: bool = False
+     requested_mode: str | None = None
++    stop_position: np.ndarray | None = None
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -87,6 +102,9 @@ class LocomotionSettings:
+     maximum_direction_change_speed_reduction: float = 0.25
+ 
+ 
++DEFAULT_LOCOMOTION_SETTINGS = LocomotionSettings()
++
++
+ @dataclass(frozen=True, slots=True)
+ class LocomotionMode:
+     """Blend targets, blend space settings, and speed limits for one locomotion mode.
+@@ -242,15 +260,11 @@ def load_locomotion_mode(
+     for data_index, (node_name, value) in enumerate(mode.target_values):
+         node_index = smart_primitive.node_index(node_name)
+         if node_index < 0 or not smart_primitive.has_target_pose(node_index):
+-            raise ValueError(
+-                f"The {mode.name!r} Smart Primitive has no target named {node_name!r}."
+-            )
++            raise ValueError(f"The {mode.name!r} Smart Primitive has no target named {node_name!r}.")
+         params = smart_primitive.get_local_target_poses(node_index, target_poses[data_index])
+         # Blending mixes whole targets, so every locomotion target needs all four poses.
+         if params.num_poses_to_use != MODEL_POSES_PER_TOKEN:
+-            raise ValueError(
+-                f"The {mode.name!r} target {node_name!r} must use {MODEL_POSES_PER_TOKEN} poses."
+-            )
++            raise ValueError(f"The {mode.name!r} target {node_name!r} must use {MODEL_POSES_PER_TOKEN} poses.")
+         blend_space.add_target(wp.vec2(*value), data_index)
+     blend_space.compile()
+     if smart_primitive.rig is ModelRig.SOMA and mode.blend_space_type is BlendSpaceType.DIRECTIONAL_2D:
+@@ -336,9 +350,10 @@ class MovementControl:
+         desired_velocity: desired_velocity_direction times desired_speed.
+     """
+ 
+-    def __init__(self, facing: np.ndarray, settings: LocomotionSettings = LocomotionSettings()) -> None:
++    def __init__(self, facing: np.ndarray, settings: LocomotionSettings = DEFAULT_LOCOMOTION_SETTINGS) -> None:
+         """Start at rest, facing along the ground direction facing."""
+         self.settings = settings
++        self.requested_stop_position: np.ndarray | None = None
+         angle = math.atan2(float(facing[1]), float(facing[0]))
+         self.input_speed = 0.0
+         self.input_velocity_direction = facing.copy()
+@@ -408,6 +423,7 @@ class MovementControl:
+         self.current_facing_rate = rate
+ 
+     def _read_input(self, command: LocomotionCommand, mode: LocomotionMode) -> None:
++        self.requested_stop_position = command.stop_position
+         facing_direction = ground_direction(command.facing_direction, self.desired_facing)
+         movement_amount = 0.0 if command.movement is None else float(np.linalg.norm(command.movement[:2]))
+         # Written as "not above", so a NaN input also counts as no movement.
+@@ -434,7 +450,9 @@ class MovementControl:
+         # A switch to a mode that is not faster slows down a little, as a sharp turn does.
+         if mode.max_speed <= previous_mode.max_speed:
+             speed_scale = _speed_reduction_scale(
+-                self.desired_speed, mode.max_speed, self.settings.maximum_direction_change_speed_reduction,
++                self.desired_speed,
++                mode.max_speed,
++                self.settings.maximum_direction_change_speed_reduction,
+             )
+             self.desired_speed = min(self.desired_speed * speed_scale, mode.max_speed)
+             self.desired_speed_rate *= speed_scale
+@@ -453,7 +471,9 @@ class MovementControl:
+ 
+         if mode.blend_space_type is BlendSpaceType.LINEAR_1D:
+             self._set_current_facing(
+-                self.desired_velocity_direction, self.desired_velocity_angle, self.desired_velocity_direction_rate,
++                self.desired_velocity_direction,
++                self.desired_velocity_angle,
++                self.desired_velocity_direction_rate,
+             )
+         else:
+             self.current_facing_angle, self.current_facing_rate = critical_spring_angle(
+@@ -471,7 +491,9 @@ class MovementControl:
+         turn_dot = float(np.dot(self.desired_velocity_direction, self.input_velocity_direction))
+         if turn_dot < settings.direction_regeneration_dot:
+             speed_goal *= _speed_reduction_scale(
+-                self.desired_speed, mode.max_speed, settings.maximum_direction_change_speed_reduction,
++                self.desired_speed,
++                mode.max_speed,
++                settings.maximum_direction_change_speed_reduction,
+             )
+         speed_halflife = (
+             settings.speed_acceleration_halflife
+@@ -479,7 +501,11 @@ class MovementControl:
+             else settings.speed_deceleration_halflife
+         )
+         self.desired_speed, self.desired_speed_rate = critical_spring_damper_exact(
+-            self.desired_speed, self.desired_speed_rate, speed_goal, speed_halflife, delta_time,
++            self.desired_speed,
++            self.desired_speed_rate,
++            speed_goal,
++            speed_halflife,
++            delta_time,
+         )
+         if self.desired_speed > mode.max_speed:
+             self.desired_speed = mode.max_speed
+@@ -488,23 +514,23 @@ class MovementControl:
+ 
+ 
+ __all__ = [
+-    "AnimationClip",
+     "CLIP_FACING_YAW",
+     "CROUCH_LOCOMOTION_MODE",
+     "DIRECTIONAL_LOCOMOTION_MODE",
+     "DIRECTIONAL_TARGET_VALUES",
+     "LINEAR_LOCOMOTION_MODE",
++    "MOVEMENT_EPSILON",
++    "AnimationClip",
+     "LocomotionCommand",
+     "LocomotionMode",
+     "LocomotionModeRuntime",
+     "LocomotionSettings",
+-    "MOVEMENT_EPSILON",
+     "MovementControl",
+     "PlaybackSource",
+     "character_start_position_and_facing",
+     "directional_blend_space_value",
+-    "make_animation_clip",
+-    "load_locomotion_mode",
+     "ground_direction",
++    "load_locomotion_mode",
++    "make_animation_clip",
+     "style_locomotion_mode",
+ ]
+diff --git a/app/runtime/common/states.py b/app/runtime/common/states.py
+index a5f3744..ac04cb5 100644
+--- a/app/runtime/common/states.py
++++ b/app/runtime/common/states.py
+@@ -5,8 +5,8 @@
+ 
+ from __future__ import annotations
+ 
+-from collections.abc import Callable
+ import random
++from collections.abc import Callable
+ from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+@@ -18,6 +18,7 @@ from motionbricks.runtime.smart_primitive import CharacterProperties
+ from motionbricks.runtime.target_pose import TargetPoseInferenceParams
+ 
+ from .motion import (
++    DEFAULT_LOCOMOTION_SETTINGS,
+     MOVEMENT_EPSILON,
+     AnimationClip,
+     LocomotionMode,
+@@ -69,7 +70,10 @@ class IdleState(State):
+         state_machine: StateMachine,
+     ) -> None:
+         character.movement.reset_desired_velocity()
+-        character.generate_clip_transition(self.choose_clip(character))
++        character.generate_clip_transition(
++            self.choose_clip(character),
++            ground_position=character.movement.requested_stop_position,
++        )
+ 
+     def update(
+         self,
+@@ -77,6 +81,9 @@ class IdleState(State):
+         state_machine: StateMachine,
+         delta_time: float,
+     ) -> None:
++        if character.movement.requested_stop_position is not None:
++            self.enter(character, state_machine)
++            return
+         if character.movement.input_speed > 0.0:
+             state_machine.transition_to_locomotion(character)
+             return
+@@ -87,9 +94,7 @@ class IdleState(State):
+     def choose_clip(self, character) -> AnimationClip:
+         """Pick a random idle clip, preferring one other than the current clip."""
+         clips = self.clips
+-        candidates = tuple(
+-            clip for clip in clips if clip is not character.current_clip
+-        )
++        candidates = tuple(clip for clip in clips if clip is not character.current_clip)
+         return self._random.choice(candidates or clips)
+ 
+ 
+@@ -105,7 +110,7 @@ class LocomotionState(State):
+         mode_runtimes: tuple[LocomotionModeRuntime, ...],
+         initial_mode: str,
+         pose: wp.array,
+-        settings: LocomotionSettings = LocomotionSettings(),
++        settings: LocomotionSettings = DEFAULT_LOCOMOTION_SETTINGS,
+     ) -> None:
+         """Create a locomotion state with its loaded modes, initial mode, and regeneration settings.
+ 
+@@ -195,20 +200,11 @@ class LocomotionState(State):
+ 
+     def _needs_regeneration(self, movement: MovementControl) -> bool:
+         settings = self.settings
+-        previous_speed = float(
+-            np.linalg.norm(self._previous_generation_desired_velocity)
+-        )
++        previous_speed = float(np.linalg.norm(self._previous_generation_desired_velocity))
+         max_speed = self.active_mode.max_speed
+-        locomotion_started = (
+-            movement.desired_speed > 0.0
+-            and previous_speed <= MOVEMENT_EPSILON
+-        )
++        locomotion_started = movement.desired_speed > 0.0 and previous_speed <= MOVEMENT_EPSILON
+         speed_delta = movement.desired_speed - previous_speed
+-        remaining_speed_range = (
+-            max_speed - previous_speed
+-            if speed_delta > 0.0
+-            else previous_speed
+-        )
++        remaining_speed_range = max_speed - previous_speed if speed_delta > 0.0 else previous_speed
+         regeneration_threshold = max(
+             remaining_speed_range * settings.speed_regeneration_fraction,
+             max_speed * settings.minimum_speed_regeneration_fraction,
+@@ -218,9 +214,7 @@ class LocomotionState(State):
+ 
+         if previous_speed <= MOVEMENT_EPSILON:
+             return False
+-        previous_direction = (
+-            self._previous_generation_desired_velocity / previous_speed
+-        )
++        previous_direction = self._previous_generation_desired_velocity / previous_speed
+         return (
+             float(
+                 np.dot(
+@@ -329,7 +323,9 @@ class InteractionState(State):
+         )
+         if name is None:
+             params = primitive.get_targets(
+-                properties, self._target_poses, stream=character.engine.stream,
++                properties,
++                self._target_poses,
++                stream=character.engine.stream,
+             )
+         else:
+             index = primitive.sequence_index(name)
+@@ -337,7 +333,9 @@ class InteractionState(State):
+                 raise ValueError(f"Smart Primitive has no sequence named {name!r}.")
+             primitive.align_sequence_pivot(index, properties, stream=character.engine.stream)
+             params = primitive.get_world_target_poses_for_sequence(
+-                index, self._target_poses, stream=character.engine.stream,
++                index,
++                self._target_poses,
++                stream=character.engine.stream,
+             )
+         params = tuple(params)
+         # A behavior that does not override get_targets() returns no targets.
+@@ -373,7 +371,9 @@ class InteractionState(State):
+             raise ValueError(f"Cannot play {path}. Declare it in the behavior's clip_paths first.")
+         self._stop_target_pose_sequence(character)
+         character.start_clip(
+-            self._clips[path, loop], loop=loop, align_to_current_pose=align_to_current_pose,
++            self._clips[path, loop],
++            loop=loop,
++            align_to_current_pose=align_to_current_pose,
+         )
+         self._playing_clip = True
+         self._clip_loop = loop
+diff --git a/app/scene_preview.py b/app/scene_preview.py
+index 04c15d4..d8cb757 100644
+--- a/app/scene_preview.py
++++ b/app/scene_preview.py
+@@ -737,6 +737,7 @@ class ScenePreview:
+             use_max_speed=input_frame.use_max_speed,
+             requested_mode=self._requested_locomotion_mode(),
+         )
++        command = self.prepare_command(command, frame_dt)
+         session.character.step(frame_dt, command)
+         self._follow_character(frame_dt)
+         self._update_camera()
+@@ -751,6 +752,12 @@ class ScenePreview:
+                 session.blendspace_target_poses,
+             )
+ 
++    def prepare_command(
++        self, command: LocomotionCommand, frame_dt: float
++    ) -> LocomotionCommand:
++        """Allow applications to supply movement before advancing the character."""
++        return command
++
+     def _draw_smart_primitives(self) -> None:
+         session = self._scene_session
+         stream = session.character.engine.stream

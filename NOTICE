@@ -1,0 +1,15 @@
+Gemini spatial character director
+Copyright 2026 Kingston Kuan
+
+This independent project integrates NVIDIA MotionBricks.
+https://github.com/NVlabs/motionbricks
+
+The integration/motionbricks.patch file contains modifications and source context
+from MotionBricks, Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
+MotionBricks source code is licensed under the Apache License, Version 2.0.
+The patch adds a pre-step command hook and exact stopping-position support.
+Upstream notices are retained in the separately downloaded checkout.
+
+No NVIDIA pretrained models, sample motion clips, rig or scene assets are
+included in this distribution. Gemini and MotionBricks names identify the
+systems used; this project is not endorsed by Google or NVIDIA.

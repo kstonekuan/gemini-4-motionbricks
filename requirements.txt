@@ -1,0 +1,7 @@
+google-genai>=2.34,<3
+pydantic>=2.12,<3
+httpx>=0.28,<1
+pydantic-settings>=2.12,<3
+fastapi>=0.128,<1
+uvicorn[standard]>=0.40,<1
+pillow>=13.0.0

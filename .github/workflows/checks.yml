@@ -1,0 +1,49 @@
+name: Director checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  source-and-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Check and build viewer
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+      - name: Get upstream source without model or motion downloads
+        env:
+          GIT_LFS_SKIP_SMUDGE: '1'
+        run: |
+          git clone https://github.com/NVlabs/motionbricks.git "$RUNNER_TEMP/MotionBricks"
+          git -C "$RUNNER_TEMP/MotionBricks" checkout 54fc563aeaaf819a753d72cc9fdc6713989cdd43
+          uv run --no-project python scripts/install.py "$RUNNER_TEMP/MotionBricks" --check
+          uv run --no-project python scripts/install.py "$RUNNER_TEMP/MotionBricks"
+      - name: Check source and installer
+        run: |
+          uv run --no-project --with ruff ruff check app scripts tests
+          uv run --no-project --with ruff ruff format --check app scripts tests
+          uv run --no-project --with ty ty check scripts
+      - name: Run director outcomes on CPU
+        run: |
+          cd "$RUNNER_TEMP/MotionBricks"
+          uv run --no-project --with google-genai --with pydantic-settings --with numpy --with warp-lang==1.17.0 python -m unittest discover -s tests -p 'test_director*.py'
+      - name: Typecheck the installed director
+        run: |
+          cd "$RUNNER_TEMP/MotionBricks"
+          uv run --no-project --with ty --with google-genai --with pydantic-settings --with pillow --with fastapi --with 'uvicorn[standard]' --with numpy --with newton==1.6.0 --with warp-lang==1.17.0 python -c 'import glob, pathlib, subprocess, numpy; raise SystemExit(subprocess.call(["ty", "check", "--extra-search-path", str(pathlib.Path(numpy.__file__).parents[1]), "app/director", "app/director_demo.py", "app/director_web.py", *glob.glob("tests/test_director*.py")]))'
