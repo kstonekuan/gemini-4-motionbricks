@@ -19,7 +19,7 @@ from motionbricks.runtime.target_pose import (
 
 from ..runtime.common.motion import AnimationClip
 from ..runtime.common.states import State
-from .body import EFFECTOR_NAMES, BodyPose
+from .body import EFFECTOR_NAMES, BodyPose, validate_grounded_feet
 from .contact import resolve_contact_pose
 from .models import BodyObservation, EffectorName, LimbObservation, Point3
 
@@ -88,6 +88,7 @@ def solve_body_target(character, constraints: BodyPose) -> tuple[wp.array, dict]
         (float(origin[0]), float(origin[1])),
         math.degrees(math.atan2(float(basis[1, 0]), float(basis[0, 0]))),
     )
+    validate_grounded_feet(constraints, observe_body(character)["effectors"])
     local_transforms = character.current_pose.numpy().copy()
     local_transforms[0, 2] = constraints.pelvis_height
     forward_rotation = wp.quat_from_axis_angle(
@@ -144,18 +145,6 @@ def solve_body_target(character, constraints: BodyPose) -> tuple[wp.array, dict]
             raise ValueError(
                 f"Generated {name} target is unreachable ({reach:.2f} m from limb start). Request a closer point or less pelvis lowering."
             )
-        if "foot" in name:
-            seed_tip = character.current_pose
-            # Grounded poses may reposition feet slightly, not step or levitate.
-            current_world = wp.empty_like(world)
-            skeleton.compute_world_transforms(
-                seed_tip, current_world, stream=character.engine.stream
-            )
-            current_tip = current_world.numpy()[configuration.tip_index, :3]
-            if abs(float(desired[2] - current_tip[2])) > 0.025:
-                raise ValueError(
-                    "Keep both foot heights at the observed floor-contact heights."
-                )
         chain = TwoBoneIKChain()
         chain.pin = int(configuration.pin)
         chain.root_index, chain.mid_index, chain.tip_index = (

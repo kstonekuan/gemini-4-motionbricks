@@ -79,6 +79,22 @@ class ExecutorTests(unittest.TestCase):
         )
         return director
 
+    def test_scene_observation_uses_rendered_heading_while_character_is_turning(self):
+        director = self.make_director([])
+        session = director._scene_session
+        session.character.pose_facing = lambda: np.array([0.0, 1.0, 0.0])
+        session.definition = SimpleNamespace(
+            character_start=SimpleNamespace(
+                id="character",
+                transform=SimpleNamespace(p=[0, 0, 0], q=[0, 0, 0, 1]),
+            ),
+            smart_primitives=[],
+            solid_cubes=[],
+        )
+        with patch("app.director.body_runtime.observe_body", return_value=None):
+            observation = director.scene_observation()
+        self.assertEqual(observation.character_heading_degrees, 90)
+
     def test_shared_queue_caps_waiters_without_replacing_active_work(self):
         active_step = PlanStep("wait", None, "walk", 20)
         director = self.make_director([active_step])

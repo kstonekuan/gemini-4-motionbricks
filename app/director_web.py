@@ -15,14 +15,19 @@ from typing import TYPE_CHECKING, assert_never
 
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import (
-    FileResponse,
     HTMLResponse,
     JSONResponse,
-    RedirectResponse,
     Response,
 )
 from pydantic import SecretStr
@@ -32,6 +37,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .director.commands import InstructionTicket, QueueRejection, WithdrawalOutcome
 from .director.models import InstructionSubmission, WithdrawalSubmission
 from .director.settings import DirectorSettings
+from .director.viewer_assets import mount_viewer_assets
 
 if TYPE_CHECKING:
     from .director_demo import DirectorDemo
@@ -71,7 +77,8 @@ class BrowserDirector:
     def __init__(self, director: DirectorDemo, assets_path: Path) -> None:
         self.director = director
         self.assets_path = assets_path.resolve()
-        self.clients: set[asyncio.Queue[tuple[bytes, str]]] = set()
+        self.clients: set[asyncio.Queue[tuple[bytes, str] | None]] = set()
+        self.simulation_task: asyncio.Task[None] | None = None
         self.sequence = 0
         self.scene_description = self.describe_scene()
 
@@ -249,13 +256,17 @@ class BrowserDirector:
 
     async def websocket(self, websocket: WebSocket) -> None:
         await websocket.accept()
-        queue: asyncio.Queue[tuple[bytes, str]] = asyncio.Queue(maxsize=1)
+        queue: asyncio.Queue[tuple[bytes, str] | None] = asyncio.Queue(maxsize=1)
         self.clients.add(queue)
 
         async def send_latest_frames() -> None:
             previous_state = ""
             while True:
-                binary, state = await queue.get()
+                packet = await queue.get()
+                if packet is None:
+                    await websocket.close(code=1012, reason="Simulation stopped.")
+                    return
+                binary, state = packet
                 await websocket.send_bytes(binary)
                 if state != previous_state:
                     await websocket.send_text(state)
@@ -279,41 +290,51 @@ class BrowserDirector:
                 ):
                     await task
 
-    async def static_file(self, path: str) -> FileResponse | RedirectResponse:
-        relative_path = path or "index.html"
-        file_path = (self.assets_path / relative_path).resolve()
-        if not file_path.is_relative_to(self.assets_path):
-            raise HTTPException(status_code=404)
-        if not file_path.is_file():
-            if relative_path == "vnc.html":
-                return RedirectResponse("./", status_code=302)
-            raise HTTPException(status_code=404)
-        return FileResponse(file_path, headers={"Cache-Control": "no-cache"})
+    async def require_simulation(self) -> None:
+        if self.simulation_task is None or self.simulation_task.done():
+            raise HTTPException(
+                status_code=503,
+                detail="The simulation is unavailable. Restart the director server.",
+            )
+
+    def close_client_streams(self) -> None:
+        # Wake blocked senders so a dead simulation cannot leave a frozen live socket.
+        for queue in tuple(self.clients):
+            if queue.full():
+                queue.get_nowait()
+            queue.put_nowait(None)
 
     @contextlib.asynccontextmanager
     async def lifecycle(self, application: FastAPI) -> AsyncGenerator[None]:
         import warp as wp
 
-        simulation = asyncio.create_task(self.run_simulation())
-        try:
-            yield
-        finally:
-            simulation.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await simulation
+        def exit_active_interaction() -> None:
             session = self.director._scene_session
             if session.state_machine.is_interacting:
                 with wp.ScopedStream(session.character.engine.stream):
                     session.state_machine.interaction_state.exit(
                         session.character, session.state_machine
                     )
-            self.director.close()
-            self.director.viewer.close()
+
+        # ExitStack runs every cleanup even when simulation or interaction exit fails.
+        with contextlib.ExitStack() as resources:
+            resources.callback(self.director.viewer.close)
+            resources.callback(self.director.close)
+            resources.callback(exit_active_interaction)
+            resources.callback(self.close_client_streams)
+            async with asyncio.TaskGroup() as simulation_tasks:
+                simulation = simulation_tasks.create_task(self.run_simulation())
+                self.simulation_task = simulation
+                try:
+                    yield
+                finally:
+                    simulation.cancel()
 
     def application(self) -> FastAPI:
         application = FastAPI(
             title="MotionBricks Director",
             lifespan=self.lifecycle,
+            dependencies=[Depends(self.require_simulation)],
             docs_url=None,
             redoc_url=None,
             servers=[{"url": "."}],
@@ -361,13 +382,7 @@ class BrowserDirector:
         application.add_api_route("/clear-queue", self.clear_queue, methods=["POST"])
         application.add_api_route("/withdraw", self.withdraw, methods=["POST"])
         application.add_api_route("/reset", self.reset, methods=["POST"])
-        application.add_api_route(
-            "/{path:path}",
-            self.static_file,
-            methods=["GET"],
-            response_model=None,
-            include_in_schema=False,
-        )
+        mount_viewer_assets(application, self.assets_path)
         return application
 
 

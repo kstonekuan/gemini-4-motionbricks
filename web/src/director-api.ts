@@ -1,4 +1,8 @@
-import { MutationObserver, QueryClient } from "@tanstack/react-query";
+import {
+  MutationObserver,
+  mutationOptions,
+  QueryClient,
+} from "@tanstack/react-query";
 import { commandErrorSchema, sceneDescriptionSchema } from "./contracts.ts";
 
 export const queryClient = new QueryClient({
@@ -33,27 +37,27 @@ export function loadScene() {
   });
 }
 
+export const directorCommandOptions = mutationOptions({
+  mutationKey: ["director-command"],
+  mutationFn: async ({ path, payload }: DirectorCommand): Promise<void> => {
+    const response = await fetch(new URL(path, document.baseURI), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    if (!response.ok) {
+      const error = commandErrorSchema.safeParse(await response.json());
+      throw new Error(
+        error.success
+          ? error.data.error
+          : "The command could not be sent. Try again.",
+      );
+    }
+  },
+});
+
 export function submitCommand(command: DirectorCommand): Promise<void> {
-  const mutation = new MutationObserver<void, Error, DirectorCommand>(
-    queryClient,
-    {
-      mutationKey: ["director-command", command.path],
-      mutationFn: async ({ path, payload }) => {
-        const response = await fetch(new URL(path, document.baseURI), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload ? JSON.stringify(payload) : undefined,
-        });
-        if (!response.ok) {
-          const error = commandErrorSchema.safeParse(await response.json());
-          throw new Error(
-            error.success
-              ? error.data.error
-              : "The command could not be sent. Try again.",
-          );
-        }
-      },
-    },
+  return new MutationObserver(queryClient, directorCommandOptions).mutate(
+    command,
   );
-  return mutation.mutate(command);
 }

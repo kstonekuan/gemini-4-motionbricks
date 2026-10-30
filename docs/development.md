@@ -7,7 +7,7 @@ Warp may report that CUDA is unavailable; its CPU backend is sufficient.
 
 ```sh
 # In the patched MotionBricks checkout:
-uv run --no-project --with google-genai --with pydantic-settings --with numpy --with warp-lang==1.17.0 python -m unittest discover -s tests -p 'test_director*.py'
+uv run --no-project --with google-genai --with pydantic-settings --with fastapi --with httpx --with 'uvicorn[standard]' --with numpy --with warp-lang==1.17.0 python -m unittest discover -s tests -p 'test_director*.py'
 uv run --no-project --with ruff ruff check --fix app/director app/director_demo.py app/director_web.py tests/test_director*.py
 uv run --no-project --with ruff ruff format app/director app/director_demo.py app/director_web.py tests/test_director*.py
 uv run --no-project --with ty --with google-genai --with pydantic-settings --with pillow --with fastapi --with 'uvicorn[standard]' --with numpy --with newton==1.6.0 --with warp-lang==1.17.0 python -c 'import glob, pathlib, subprocess, numpy; raise SystemExit(subprocess.call(["ty", "check", "--extra-search-path", str(pathlib.Path(numpy.__file__).parents[1]), "app/director", "app/director_demo.py", "app/director_web.py", *glob.glob("tests/test_director*.py")]))'

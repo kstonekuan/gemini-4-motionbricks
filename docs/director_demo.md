@@ -196,7 +196,7 @@ for the integration boundaries and responsibilities.
 
 ## Verification and limitations
 
-The director has 36 CPU tests and the viewer has eight behavior tests. Live
+The director has 41 CPU tests and the viewer has eight behavior tests. Live
 Gemini/GPU checks covered left/right surface reaches, generated body poses,
 walking after poses, shared FIFO commands, overflow and withdrawal. The same
 instruction produced a different valid goal after the wall was moved and rotated.

@@ -2,6 +2,7 @@
 
 import math
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -163,3 +164,26 @@ class BodyRuntimeTests(unittest.TestCase):
                 actual = world.numpy()[character.skeleton.joint_index("LeftHand"), :3]
                 self.assertLess(float(np.linalg.norm(actual - world_goal)), 0.025)
                 self.assertEqual(diagnostics["contact"]["position"], list(world_goal))
+
+    def test_pose_rechecks_grounded_feet_against_live_contacts_before_ik(self):
+        with wp.ScopedDevice("cpu"):
+            character = self.make_character(0)
+            observation = observe_body(character)
+            pose = BodyPose(
+                0.83,
+                6,
+                0,
+                (0.25, 0.22, 1.14),
+                (0.1, -0.4, 1.15),
+                observation["effectors"]["left_foot"],
+                observation["effectors"]["right_foot"],
+            )
+            for offset, rejection in (((0.2, 0, 0), "18cm"), ((0, 0, -0.03), "height")):
+                with self.subTest(offset=offset):
+                    stale_contact = tuple(
+                        value + delta for value, delta in zip(pose.left_foot, offset)
+                    )
+                    with self.assertRaisesRegex(ValueError, rejection):
+                        solve_body_target(
+                            character, replace(pose, left_foot=stale_contact)
+                        )

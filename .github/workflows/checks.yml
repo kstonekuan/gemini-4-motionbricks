@@ -42,7 +42,7 @@ jobs:
       - name: Run director outcomes on CPU
         run: |
           cd "$RUNNER_TEMP/MotionBricks"
-          uv run --no-project --with google-genai --with pydantic-settings --with numpy --with warp-lang==1.17.0 python -m unittest discover -s tests -p 'test_director*.py'
+          uv run --no-project --with google-genai --with pydantic-settings --with fastapi --with httpx --with 'uvicorn[standard]' --with numpy --with warp-lang==1.17.0 python -m unittest discover -s tests -p 'test_director*.py'
       - name: Typecheck the installed director
         run: |
           cd "$RUNNER_TEMP/MotionBricks"

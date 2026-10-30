@@ -24,8 +24,16 @@ import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Textarea } from "./components/ui/textarea";
 
-// Mount once: Three.js owns the canvases and the session adapter owns the empty
-// status/list outlets. React never reconciles streamed poses or these outlets.
+import {
+  BodyCoordinates,
+  CommandHistory,
+  GeneratedSteps,
+  QueueCount,
+  RecentOutcomes,
+  SpatialTargets,
+} from "./session-panels";
+
+// Three.js owns canvases and diagnostic outlets; React owns the session lists.
 function CommandFeedback() {
   const pendingCount = useIsMutating({ mutationKey: ["director-command"] });
   const submissions = useMutationState({
@@ -102,14 +110,7 @@ export function DirectorInterface() {
             <p id="status" role="status" aria-live="polite">
               Give the character an instruction.
             </p>
-            <section
-              className="plan-scroll"
-              // biome-ignore lint/a11y/noNoninteractiveTabindex: Focus enables keyboard scrolling of this overflow region.
-              tabIndex={0}
-              aria-label="Generated execution steps"
-            >
-              <ol id="plan" />
-            </section>
+            <GeneratedSteps />
           </PlanContent>
         </Plan>
       </section>
@@ -229,12 +230,7 @@ export function DirectorInterface() {
               </Button>
             </div>
           </div>
-          <details className="spatial-targets">
-            <summary id="spatial-target-summary">
-              Gemini’s spatial targets (0)
-            </summary>
-            <ol id="spatial-target-list"></ol>
-          </details>
+          <SpatialTargets />
           <Card id="surface-reach" hidden className="gap-3 py-3">
             <CardHeader className="px-3">
               <CardTitle
@@ -273,32 +269,17 @@ export function DirectorInterface() {
               />
             </a>
           </details>
-          <p id="body-target-details" aria-live="polite"></p>
-          <details id="body-coordinates" hidden>
-            <summary>Body target coordinates</summary>
-            <p>
-              Forward, left, height in meters. A pinned surface hand is shown in
-              world coordinates.
-            </p>
-            <dl id="body-coordinate-list"></dl>
-            <p id="body-tracking-details"></p>
-          </details>
+          <BodyCoordinates />
           <details className="command-history">
             <summary>
-              Commands <span id="queue-count" />
+              Commands <QueueCount />
             </summary>
-            <p id="queue-status">No commands waiting.</p>
-            <p className="queue-caption">Current instruction</p>
-            <p id="active-instruction">Ready for the next instruction.</p>
-            <ol id="instruction-queue" />
+            <CommandHistory />
             <Button variant="outline" id="clear-queue" type="button" disabled>
               <ListX aria-hidden="true" />
               Clear waiting commands
             </Button>
-            <details>
-              <summary>Recent instructions</summary>
-              <ul id="recent-outcomes" />
-            </details>
+            <RecentOutcomes />
           </details>
           <Button
             variant="ghost"

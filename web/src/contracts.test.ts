@@ -69,13 +69,16 @@ test("inconsistent skeleton and skinning dimensions are rejected before mesh cre
     sceneDescriptionSchema.safeParse({ ...scene, parents: [0] }).success,
     false,
   );
-  assert.equal(
-    sceneDescriptionSchema.safeParse({
-      ...scene,
-      meshes: [{ ...scene.meshes[0], influences: 2 }],
-    }).success,
-    false,
-  );
+  for (const mesh of [
+    { ...scene.meshes[0], influences: 2 },
+    { ...scene.meshes[0], indices: [0, 1, 3] },
+    { ...scene.meshes[0], indices: [0, 1] },
+    { ...scene.meshes[0], jointIndices: [0, 1, 0] },
+  ])
+    assert.equal(
+      sceneDescriptionSchema.safeParse({ ...scene, meshes: [mesh] }).success,
+      false,
+    );
 });
 
 test("malformed binary poses never reach the animation timeline", () => {

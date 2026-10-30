@@ -56,3 +56,26 @@ stopping position through the locomotion/idle path. It includes no upstream
 assets. The installer checks the commit, patch and destination files before
 making changes. All upstream source and license notices remain in the user's
 MotionBricks checkout.
+
+Viewer assets use Starlette StaticFiles. The app owns only the no-cache policy
+and legacy viewer redirect; the framework owns path containment, file responses,
+HEAD and conditional requests. Zod parses mesh triangle/vertex/joint references
+before Three.js builds GPU buffers.
+
+The simulation belongs to a Python task group in the FastAPI lifespan. ExitStack
+attempts interaction, planner/engine and viewer cleanup even if an earlier cleanup
+fails. A stopped simulation rejects API commands and new WebSockets with 503;
+existing streams close so the viewer reconnects. This reports failure rather than
+automatically restarting the GPU process. Process supervision remains a deployment
+concern.
+
+The WebSocket adapter publishes parsed JSON session snapshots into the existing
+TanStack Query cache. React owns the plan, queue, history and coordinate lists,
+using scoped subscriptions so unrelated diagnostics preserve list focus and DOM
+identity. Binary pose packets remain in the Three.js timeline. Native controls
+and React withdrawal buttons share TanStack mutation options and never retry
+commands automatically.
+
+The same grounded-foot checks apply both to the planning snapshot and to the live
+skeleton before IK. Body observation, surface projection and IK use the actual
+rendered pose heading, including while the actor is turning.

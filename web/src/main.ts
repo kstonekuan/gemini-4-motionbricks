@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { match } from "ts-pattern";
 import { createActor } from "xstate";
-import { buttonVariants } from "./components/ui/button";
 import {
   type DirectorState,
   directorStateSchema,
@@ -11,8 +9,10 @@ import {
   type SceneDescription,
 } from "./contracts";
 import { loadScene, submitCommand } from "./director-api";
+import { describeStep } from "./plan-presentation";
 import { PoseTimeline } from "./pose-timeline";
 import { sessionConnection } from "./session-connection";
+import { publishSessionState, viewerId } from "./session-state";
 import "./style.css";
 
 interface CharacterRig {
@@ -32,7 +32,6 @@ const canvas = requiredElement<HTMLCanvasElement>("#scene");
 const connection = requiredElement("#connection");
 const instructionInput = requiredElement<HTMLTextAreaElement>("#instruction");
 const statusElement = requiredElement("#status");
-const planElement = requiredElement("#plan");
 const targetsToggle = requiredElement<HTMLInputElement>("#show-targets");
 const followButton = requiredElement<HTMLButtonElement>("#follow");
 const loadingElement = requiredElement("#loading");
@@ -420,33 +419,7 @@ function receivePose(data: ArrayBuffer): void {
     );
 }
 
-function describeStep(step: DirectorState["steps"][number]): string {
-  const interactions = {
-    small_box: "Jump over the small box",
-    vault: "Vault over the wall",
-    bar: "Duck under the bar",
-    seat: "Sit on the seat",
-  };
-  return match(step)
-    .with({ action: "wait" }, ({ seconds }) => `Wait ${seconds} seconds`)
-    .with({ action: "stand" }, () => "Stand up")
-    .with({ action: "stop" }, () => "Stop moving")
-    .with({ action: "interact" }, ({ target }) => interactions[target])
-    .with({ action: "pose" }, ({ seconds, body_pose }) =>
-      body_pose.contact
-        ? `Reach ${body_pose.contact.effector.replace("_", " ")} to ${body_pose.contact.object_name} and hold for ${seconds}s`
-        : `Generate a body pose and hold for ${seconds}s`,
-    )
-    .with(
-      { action: "move" },
-      ({ style, waypoints }) =>
-        `${style === "run" ? "Run" : style === "skip" ? "Skip" : "Move"} along ${waypoints.length} spatial targets${["zombie", "crouch"].includes(style) ? ` (${style})` : ""}`,
-    )
-    .exhaustive();
-}
-
-let planSignature = "";
-let queueSignature = "";
+let renderedRouteSignature = "";
 function updateState(state: DirectorState): void {
   if (state.model) {
     const modelName =
@@ -457,59 +430,7 @@ function updateState(state: DirectorState): void {
       document.title = `${modelName} × MotionBricks | Spatial character director`;
     }
   }
-  const queueState = JSON.stringify([
-    state.activeInstruction,
-    state.queuedInstructions,
-    state.recentOutcomes,
-    state.viewerCount,
-  ]);
-  if (queueSignature !== queueState) {
-    queueSignature = queueState;
-    requiredElement("#queue-status").textContent = state.queuedInstructions
-      .length
-      ? `${state.queuedInstructions.length} waiting`
-      : "No commands waiting.";
-    requiredElement("#queue-count").textContent = state.queuedInstructions
-      .length
-      ? `(${state.queuedInstructions.length} waiting)`
-      : "";
-    requiredElement("#active-instruction").textContent =
-      state.activeInstruction?.instruction ?? "Ready for the next command.";
-    requiredElement("#instruction-queue").replaceChildren(
-      ...state.queuedInstructions.map((ticket) => {
-        const item = document.createElement("li");
-        const label = document.createElement("span");
-        label.textContent = `${ticket.instruction}${ticket.submitted_by === viewerId ? " (yours)" : ""}`;
-        item.append(label);
-        if (ticket.submitted_by === viewerId) {
-          const withdraw = document.createElement("button");
-          withdraw.type = "button";
-          withdraw.className = buttonVariants({
-            variant: "outline",
-            size: "sm",
-            className: "withdraw-command",
-          });
-          withdraw.textContent = "Withdraw";
-          withdraw.setAttribute("aria-label", `Withdraw ${ticket.instruction}`);
-          withdraw.addEventListener("click", () => {
-            void sendCommand({
-              path: "withdraw",
-              payload: { id: ticket.id, viewerId },
-            });
-          });
-          item.append(withdraw);
-        }
-        return item;
-      }),
-    );
-    requiredElement("#recent-outcomes").replaceChildren(
-      ...state.recentOutcomes.map((result) => {
-        const item = document.createElement("li");
-        item.textContent = `${result.instruction} — ${result.outcome}`;
-        return item;
-      }),
-    );
-  }
+  publishSessionState(state);
   const measuredContact = state.bodyTarget?.contact;
   const plannedContact = state.steps
     .slice(state.stepIndex)
@@ -566,45 +487,6 @@ function updateState(state: DirectorState): void {
     previewSignature = targetSignature;
     previewNeedsUpdate = true;
   }
-  const coordinateDetails = requiredElement("#body-coordinates");
-  coordinateDetails.hidden = !hasBodyTarget;
-  const poseDefinition = state.steps
-    .slice(0, state.stepIndex + 1)
-    .reverse()
-    .find((step) => step.body_pose !== null)?.body_pose;
-  if (poseDefinition && hasBodyTarget) {
-    const rows = [
-      [
-        poseDefinition.contact?.effector === "left_hand"
-          ? "Left hand (world)"
-          : "Left hand",
-        poseDefinition.contact?.effector === "left_hand"
-          ? poseDefinition.contact.position
-          : poseDefinition.left_hand,
-      ],
-      [
-        poseDefinition.contact?.effector === "right_hand"
-          ? "Right hand (world)"
-          : "Right hand",
-        poseDefinition.contact?.effector === "right_hand"
-          ? poseDefinition.contact.position
-          : poseDefinition.right_hand,
-      ],
-      ["Left foot", poseDefinition.left_foot],
-      ["Right foot", poseDefinition.right_foot],
-    ] as const;
-    requiredElement("#body-coordinate-list").replaceChildren(
-      ...rows.flatMap(([label, values]) => {
-        const name = document.createElement("dt");
-        name.textContent = label;
-        const value = document.createElement("dd");
-        value.textContent = values
-          .map((coordinate) => coordinate.toFixed(2))
-          .join(", ");
-        return [name, value];
-      }),
-    );
-  }
   bodyPins.visible = targetsToggle.checked && hasBodyTarget;
   if (state.bodyTarget) {
     const positions = Object.values(state.bodyTarget.desired);
@@ -617,15 +499,6 @@ function updateState(state: DirectorState): void {
     bodyPins.instanceMatrix.needsUpdate = true;
     bodyPins.computeBoundingSphere();
   }
-  const bodyDetails = requiredElement("#body-target-details");
-  bodyDetails.textContent = state.bodyTarget
-    ? `Gemini body target · pelvis ${state.bodyTarget.pelvisHeight.toFixed(2)} m · largest IK error ${(Math.max(...Object.values(state.bodyTarget.residuals)) * 100).toFixed(1)} cm`
-    : "";
-  const trackingDetails = requiredElement("#body-tracking-details");
-  trackingDetails.textContent =
-    state.bodyTarget?.beforeHoldRootError !== undefined
-      ? `Before hold: pelvis ${(state.bodyTarget.beforeHoldRootError * 100).toFixed(1)} cm from target.`
-      : "";
   const currentStep = state.steps[state.stepIndex];
   const completed = state.status.startsWith("Done.");
   const rejected =
@@ -665,13 +538,9 @@ function updateState(state: DirectorState): void {
     state.active && currentStep && !state.planning
       ? `Step ${state.stepIndex + 1} of ${state.steps.length}: ${describeStep(currentStep)}`
       : state.status;
-  const signature = JSON.stringify([
-    state.steps,
-    state.stepIndex,
-    state.active,
-  ]);
-  if (signature !== planSignature) {
-    const spatialTargets = state.steps.flatMap((step) => step.waypoints);
+  const spatialTargets = state.steps.flatMap((step) => step.waypoints);
+  const signature = JSON.stringify([spatialTargets, state.planningOrigin]);
+  if (signature !== renderedRouteSignature) {
     proposedWaypointCount = spatialTargets.length;
     const vertices = spatialTargets.flatMap((waypoint) => [
       waypoint.position[0],
@@ -709,63 +578,7 @@ function updateState(state: DirectorState): void {
     proposedRoute.visible = targetsToggle.checked && proposedWaypointCount > 0;
     proposedWaypoints.visible = proposedRoute.visible;
     finalHeading.visible = targetsToggle.checked && hasFinalHeading;
-    const targetList = requiredElement("#spatial-target-list");
-    targetList.replaceChildren(
-      ...spatialTargets.map((waypoint, index) => {
-        const row = document.createElement("li");
-        row.textContent = `${index + 1}. (${waypoint.position.map((value) => value.toFixed(1)).join(", ")}) m · ${waypoint.speed.toFixed(2)} m/s${waypoint.heading_degrees !== null ? ` · face ${waypoint.heading_degrees.toFixed(0)}°` : ""}`;
-        return row;
-      }),
-    );
-    requiredElement("#spatial-target-summary").textContent =
-      `Gemini’s spatial targets (${spatialTargets.length})`;
-    planElement.replaceChildren(
-      ...state.steps.map((step, index) => {
-        const item = document.createElement("li");
-        const label = document.createElement("strong");
-        label.textContent = step.label ?? describeStep(step);
-        const detail = document.createElement("span");
-        detail.textContent = step.label
-          ? describeStep(step)
-          : step.action === "move" || step.action === "interact"
-            ? `${step.style} · ${step.waypoints.length} waypoints`
-            : step.action === "pose"
-              ? `Hands ${step.body_pose.left_hand[2].toFixed(2)} / ${step.body_pose.right_hand[2].toFixed(2)} m high`
-              : "";
-        const content = document.createElement("div");
-        content.append(label, detail);
-        item.append(content);
-        item.dataset.state =
-          completed || index < state.stepIndex
-            ? "complete"
-            : state.active && index === state.stepIndex
-              ? "current"
-              : "upcoming";
-        if (state.active && index === state.stepIndex)
-          item.setAttribute("aria-current", "step");
-        item.classList.toggle(
-          "active",
-          state.active && index === state.stepIndex,
-        );
-        return item;
-      }),
-    );
-    planSignature = signature;
-    const activeStep = planElement.querySelector<HTMLElement>(
-      "[aria-current='step']",
-    );
-    if (state.active && activeStep) {
-      const scroller = requiredElement(".plan-scroll");
-      const stepBounds = activeStep.getBoundingClientRect();
-      const scrollBounds = scroller.getBoundingClientRect();
-      const overflow =
-        stepBounds.left < scrollBounds.left
-          ? stepBounds.left - scrollBounds.left
-          : stepBounds.right > scrollBounds.right
-            ? stepBounds.right - scrollBounds.right
-            : 0;
-      if (overflow) scroller.scrollBy({ left: overflow, behavior: "smooth" });
-    }
+    renderedRouteSignature = signature;
   }
 }
 
@@ -779,8 +592,6 @@ async function sendCommand(
       error instanceof Error ? error.message : "Connection failed. Try again.";
   }
 }
-
-const viewerId = crypto.randomUUID();
 
 requiredElement("#instruction-form").addEventListener("submit", (event) => {
   event.preventDefault();

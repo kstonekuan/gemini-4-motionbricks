@@ -153,7 +153,14 @@ export const directorStateSchema = z.object({
 const meshDescription = z
   .object({
     positions: z.array(finiteNumber),
-    indices: z.array(nonnegativeInteger),
+    indices: z
+      .array(nonnegativeInteger)
+      .check(
+        z.refine(
+          (indices) => indices.length % 3 === 0,
+          "Mesh indices must describe triangles.",
+        ),
+      ),
     jointIndices: z.array(nonnegativeInteger),
     jointWeights: z.array(finiteNumber),
     influences: z.int().check(z.gte(1), z.lte(12)),
@@ -162,10 +169,13 @@ const meshDescription = z
     z.refine(
       (mesh) =>
         mesh.positions.length % 3 === 0 &&
+        mesh.indices.every(
+          (vertexIndex) => vertexIndex < mesh.positions.length / 3,
+        ) &&
         mesh.jointIndices.length ===
           (mesh.positions.length / 3) * mesh.influences &&
         mesh.jointWeights.length === mesh.jointIndices.length,
-      "Mesh vertex and skinning dimensions do not match.",
+      "Mesh vertex references or skinning dimensions are invalid.",
     ),
   );
 export const sceneDescriptionSchema = z
@@ -183,10 +193,16 @@ export const sceneDescriptionSchema = z
       (scene) =>
         scene.parents.length === scene.jointNames.length &&
         scene.inverseBind.length === scene.jointNames.length &&
+        scene.meshes.every((mesh) =>
+          mesh.jointIndices.every(
+            (jointIndex) =>
+              jointIndex < scene.jointNames.length && jointIndex <= 65535,
+          ),
+        ) &&
         scene.parents.every((parent, index) =>
           index === 0 ? parent === -1 : parent >= 0 && parent < index,
         ),
-      "Skeleton hierarchy and bind dimensions do not match.",
+      "Skeleton references, hierarchy or bind dimensions are invalid.",
     ),
   );
 

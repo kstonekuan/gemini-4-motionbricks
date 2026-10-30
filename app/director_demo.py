@@ -264,7 +264,7 @@ class DirectorDemo(ScenePreview):
         }
         character = session.character
         position = character.character_ground_position
-        facing = character.movement.current_facing
+        facing = character.pose_facing()
         observed_state = session.state_machine.state.name
         if (
             session.state_machine.is_interacting
