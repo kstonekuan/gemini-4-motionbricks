@@ -45,24 +45,24 @@ The shell commands below use a Linux checkout and headless EGL.
 contains only the director/viewer source and a small source-code integration patch.
 It does not redistribute MotionBricks, pretrained models or sample motion clips.
 
-Starting with this repository checked out in `gemini-spatial-director`:
+Starting with this repository checked out in `gemini-directs-motionbricks`:
 
 ```sh
-# From the directory containing gemini-spatial-director:
+# From the directory containing gemini-directs-motionbricks:
 GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/NVlabs/motionbricks.git MotionBricks
 cd MotionBricks
 git checkout 54fc563aeaaf819a753d72cc9fdc6713989cdd43
 git lfs pull
 uv sync
-cd ../gemini-spatial-director/web
+cd ../gemini-directs-motionbricks/web
 pnpm install --frozen-lockfile
 pnpm build
 cd ..
 uv run --no-project python scripts/install.py ../MotionBricks --check
 uv run --no-project python scripts/install.py ../MotionBricks
 cd ../MotionBricks
-uv add --requirements ../gemini-spatial-director/requirements.txt
-cp ../gemini-spatial-director/.env.example .env
+uv add --requirements ../gemini-directs-motionbricks/requirements.txt
+cp ../gemini-directs-motionbricks/.env.example .env
 ```
 
 Edit `.env` in **MotionBricks**, supplying your own `GEMINI_API_KEY`. Set
