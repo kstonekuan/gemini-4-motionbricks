@@ -454,7 +454,7 @@ function updateState(state: DirectorState): void {
     const modelElement = requiredElement("#model-name");
     if (modelElement.textContent !== modelName) {
       modelElement.textContent = modelName;
-      document.title = `${modelName} | Spatial character director`;
+      document.title = `${modelName} × MotionBricks | Spatial character director`;
     }
   }
   const queueState = JSON.stringify([

@@ -57,24 +57,24 @@ export function DirectorInterface() {
         <a
           className="brand"
           href="./"
-          aria-label="Gemini spatial director home"
+          aria-label="Spatial character director home"
         >
-          <span className="brand-symbol">
-            <Sparkles aria-hidden="true" />
-          </span>
           <span className="brand-type">
-            <strong id="model-name">Gemini 4 Argon</strong>
-            <span>Spatial character director</span>
+            <span className="brand-names">
+              <strong id="model-name">Gemini 4 Argon</strong>
+              <span className="brand-cross" aria-hidden="true">
+                ×
+              </span>
+              <strong>MotionBricks</strong>
+            </span>
+            <span className="brand-description">
+              Spatial reasoning meets motion generation
+            </span>
           </span>
         </a>
         <div className="header-session">
-          <a
-            className="motion-credit"
-            href="https://github.com/NVlabs/motionbricks"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Motion by MotionBricks
+          <a className="system-guide" href="#how-it-works">
+            How it works
           </a>
           <Badge variant="outline" id="connection" role="status">
             Connecting…
@@ -93,7 +93,9 @@ export function DirectorInterface() {
               <br />
               placed in space.
             </h1>
-            <p>Describe a move. Watch Gemini’s targets become motion.</p>
+            <p>
+              Gemini generates the targets. MotionBricks brings them to life.
+            </p>
           </div>
           <div className="view-tools">
             <Button
@@ -138,8 +140,8 @@ export function DirectorInterface() {
           <div className="composer-heading">
             <h2>What should it do?</h2>
             <p className="intro">
-              Gemini reads the gym and turns your words into routes, surface
-              goals and body targets.
+              Gemini reads the gym and generates routes and body targets.
+              MotionBricks builds the poses and generates the motion.
             </p>
           </div>
           <form id="instruction-form">
@@ -312,6 +314,7 @@ export function DirectorInterface() {
             </p>
           </details>
           <section
+            id="how-it-works"
             className="division-of-work"
             aria-label="How the character is directed"
           >

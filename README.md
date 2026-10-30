@@ -1,6 +1,6 @@
-# Gemini spatial character director
+# Gemini 4 Argon × MotionBricks
 
-Give Gemini 4 Argon an instruction and watch it direct a character through a 3D gym.
+Give Gemini 4 Argon an instruction and watch MotionBricks bring it to life in a 3D gym.
 Gemini sees a rendered scene and structured geometry, then generates routes,
 headings, surface goals and numerical body targets. MotionBricks turns those
 validated targets into motion.

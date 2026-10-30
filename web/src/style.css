@@ -92,29 +92,27 @@ input:focus-visible {
   color: var(--foreground);
   text-decoration: none;
 }
-.brand-symbol {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 15px 15px 15px 4px;
-  background: #edf0ff;
-  color: #7056ce;
-}
-.brand-symbol svg {
-  width: 27px;
-  height: 27px;
-}
 .brand-type {
   display: grid;
   gap: 2px;
+}
+.brand-names {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.brand-cross {
+  font-size: 21px;
+  color: #7056ce;
 }
 .brand-type strong {
   font-size: 21px;
   font-weight: 750;
   letter-spacing: -0.8px;
+  white-space: nowrap;
 }
-.brand-type > span {
+.brand-description {
   font-size: 12px;
   color: var(--muted-foreground);
 }
@@ -123,7 +121,7 @@ input:focus-visible {
   align-items: center;
   gap: 22px;
 }
-.motion-credit {
+.system-guide {
   font-size: 12px;
   color: var(--muted-foreground);
   text-underline-offset: 4px;
@@ -619,23 +617,33 @@ summary {
   .brand {
     gap: 9px;
   }
-  .brand-symbol {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px 12px 12px 4px;
+  .app-header {
+    position: relative;
+    min-height: 82px;
   }
-  .brand-symbol svg {
-    width: 23px;
-    height: 23px;
+  .brand-type {
+    gap: 7px;
+  }
+  .brand-names {
+    gap: 7px;
   }
   .brand-type strong {
     font-size: 18px;
   }
-  .brand-type > span {
-    font-size: 10px;
+  .brand-cross {
+    font-size: 18px;
   }
-  .motion-credit {
+  .brand-description {
+    font-size: 10px;
+    max-width: 225px;
+  }
+  .system-guide {
     display: none;
+  }
+  .header-session {
+    position: absolute;
+    right: 18px;
+    bottom: 9px;
   }
   #connection {
     font-size: 10px;
@@ -716,8 +724,15 @@ summary {
   .brand-type strong {
     font-size: 16px;
   }
-  .brand-symbol {
-    display: none;
+  .brand-names {
+    gap: 5px;
+  }
+  .brand-description {
+    font-size: 9px;
+    max-width: 190px;
+  }
+  .header-session {
+    right: 12px;
   }
   .stage-target-toggle {
     bottom: 94px;
