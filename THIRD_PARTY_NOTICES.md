@@ -24,3 +24,7 @@ Manrope's license is included in `licenses/Manrope-OFL.txt`.
 
 The vendored shadcn/ui component source retains the upstream MIT license in
 `licenses/shadcn-ui-MIT.txt`.
+
+AI Elements Plan/Shimmer component sources are Copyright 2023 Vercel, Inc.,
+licensed under Apache-2.0. Their notice is included in
+`licenses/vercel-ai-elements-LICENSE.txt`. Motion is installed under MIT.

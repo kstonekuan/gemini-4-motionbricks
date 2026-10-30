@@ -18,8 +18,8 @@ custom code in this repository.
 - “Run behind the small box, then vault over the wall.”
 
 Inspect the generated route, cyan target pose, amber surface goal and measured
-hand error. Open **What Gemini saw** to view the actual planning image. Multiple
-viewers share one character; instructions run in a queue with eight waiting slots.
+hand error. Open **What Gemini saw** to view the actual planning image. The plan board stays above the scene, showing generation and active steps.
+Waiting commands and history live in the optional Commands section.
 
 ## What Gemini does
 
@@ -123,4 +123,4 @@ upstream terms. Obtaining assets separately does not remove their usage terms;
 review them for your intended use, including a hosted demo.
 
 The viewer uses Three.js, React, TanStack Query, XState, ts-pattern, Zod,
-shadcn/ui, Radix UI, Lucide and Manrope. See [third-party notices](THIRD_PARTY_NOTICES.md).
+AI Elements, shadcn/ui, Radix UI, Motion, Lucide and Manrope. See [third-party notices](THIRD_PARTY_NOTICES.md).

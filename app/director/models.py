@@ -109,6 +109,12 @@ class PlanStep:
     seconds: Annotated[FiniteNumber, Field(ge=0, le=30)]
     waypoints: Annotated[tuple[SpatialWaypoint, ...], Field(max_length=64)] = ()
     body_pose: BodyPose | None = None
+    label: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)
+        ]
+        | None
+    ) = None
 
     def __post_init__(self) -> None:
         if self.action == "interact" and self.target is None:

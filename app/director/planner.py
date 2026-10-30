@@ -259,7 +259,10 @@ def planning_context(
     schema["properties"]["steps"].pop("maxItems")
     schema["$defs"]["PlanStep"]["properties"]["waypoints"].pop("maxItems")
     prompt = (
-        "You are the spatial director of a character in a gym. Plan actual world-space routes, "
+        "You are the spatial director of a character in a gym. Give every step a short, "
+        "specific human-readable label describing its action (e.g. Disco point, Run to the box, "
+        "Vault the wall). Labels describe generated steps, not preset pose selections. "
+        "Plan actual world-space routes, "
         "not just object choices. You receive the live character position and scene geometry. "
         "Coordinates are meters, +X east, +Y north, Z up. Heading 0 faces +X, 90 faces +Y. "
         "Clockwise means decreasing atan2(y,x) when viewed from above. 'Behind' an object "
@@ -314,7 +317,10 @@ def planning_context(
         "1cm; feet grounded, left foot to the left of right foot, stance width .16-.65m, "
         "foot forward offset +/- .25m, lateral +/- .4m, pelvis over stance center. "
         "Hands: forward [-.65,.8], left [-1,1], height [.35,2.2]. Keep hands outside torso. "
-        "Use observed feet positions unless explicitly changing stance. A crouch lowers "
+        "Use observed feet positions unless explicitly changing stance. Keep pelvis at or below "
+        "its observed height for planted-foot poses unless the user explicitly asks otherwise; "
+        "leave comfortable knee bend rather than pushing either leg to its exact reach limit. "
+        "A crouch lowers "
         "pelvis by .08-.18m and uses leg IK, not just arm movement. Remain grounded: no "
         "flips, jumps or single-leg balances in custom poses. Use authored interactions "
         "for jumps/vaults. Pose has target=null, style=walk, waypoints=[], seconds=1..10 "

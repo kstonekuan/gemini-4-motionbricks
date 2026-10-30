@@ -28,6 +28,7 @@ class PlannerTests(unittest.TestCase):
                 "steps": [
                     {
                         "action": "interact",
+                        "label": "Jump over the box",
                         "target": "small_box",
                         "style": "skip",
                         "seconds": 0,
@@ -65,6 +66,8 @@ class PlannerTests(unittest.TestCase):
             }
         )
         self.assertEqual([step.target for step in steps], ["small_box", None, "seat"])
+        self.assertEqual(steps[0].label, "Jump over the box")
+        self.assertIsNone(steps[1].label)
 
     def test_rejects_invalid_model_outputs(self):
         valid = {

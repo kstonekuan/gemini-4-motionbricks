@@ -4,7 +4,7 @@ import {
   Focus,
   Hand,
   ListX,
-  Move3D,
+  LoaderCircle,
   PersonStanding,
   RotateCcw,
   Route,
@@ -12,8 +12,13 @@ import {
   Send,
   Sparkles,
   Square,
-  Users,
 } from "lucide-react";
+import {
+  Plan,
+  PlanContent,
+  PlanHeader,
+  PlanTitle,
+} from "./components/ai-elements/plan";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -73,30 +78,47 @@ export function DirectorInterface() {
           </span>
         </a>
         <div className="header-session">
-          <a className="system-guide" href="#how-it-works">
-            How it works
-          </a>
           <Badge variant="outline" id="connection" role="status">
             Connecting…
           </Badge>
         </div>
       </header>
+      <section className="plan-region" aria-labelledby="plan-title">
+        <Plan id="plan-board" className="plan-board" open>
+          <PlanHeader className="plan-header">
+            <div className="plan-heading">
+              <Sparkles aria-hidden="true" />
+              <PlanTitle id="plan-title" role="heading" aria-level={2}>
+                Gemini’s plan
+              </PlanTitle>
+              <Badge id="plan-phase" variant="outline">
+                Ready
+              </Badge>
+              <LoaderCircle id="plan-spinner" aria-hidden="true" />
+            </div>
+            <p id="plan-instruction" />
+          </PlanHeader>
+          <PlanContent className="plan-content">
+            <p id="status" role="status" aria-live="polite">
+              Give the character an instruction.
+            </p>
+            <section
+              className="plan-scroll"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: Focus enables keyboard scrolling of this overflow region.
+              tabIndex={0}
+              aria-label="Generated execution steps"
+            >
+              <ol id="plan" />
+            </section>
+          </PlanContent>
+        </Plan>
+      </section>
       <main>
         <section className="stage" aria-label="Interactive character view">
           <canvas
             id="scene"
             aria-label="Live 3D character. Drag to orbit, scroll to zoom."
           ></canvas>
-          <div className="stage-heading">
-            <h1>
-              Language,
-              <br />
-              placed in space.
-            </h1>
-            <p>
-              Gemini generates the targets. MotionBricks brings them to life.
-            </p>
-          </div>
           <div className="view-tools">
             <Button
               variant="outline"
@@ -106,6 +128,10 @@ export function DirectorInterface() {
             >
               <Focus aria-hidden="true" />
               Follow character
+            </Button>
+            <Button variant="outline" id="pose-view" type="button">
+              <PersonStanding aria-hidden="true" />
+              See pose
             </Button>
             <Button variant="outline" id="overview" type="button">
               <Scan aria-hidden="true" />
@@ -139,10 +165,7 @@ export function DirectorInterface() {
         <aside className="director-panel">
           <div className="composer-heading">
             <h2>What should it do?</h2>
-            <p className="intro">
-              Gemini reads the gym and generates routes and body targets.
-              MotionBricks builds the poses and generates the motion.
-            </p>
+            <p className="intro">Describe a route, a jump or a pose.</p>
           </div>
           <form id="instruction-form">
             <label htmlFor="instruction">Your instruction</label>
@@ -152,12 +175,12 @@ export function DirectorInterface() {
               rows={3}
               placeholder="Reach my left hand to the yellow wall’s top corner nearest the seat."
               required
-              defaultValue="Walk to a reachable place beside the yellow wall. Reach my left hand to its top west corner on the side nearest the seat, and hold the surface goal for five seconds."
+              defaultValue="Run to a clear approach, jump over the small box, then run to the vault and vault over it."
             />
             <div className="action-row">
               <Button className="flex-1" id="direct" type="submit" disabled>
                 <Send aria-hidden="true" />
-                Queue command
+                Direct character
               </Button>
               <Button variant="outline" id="stop" type="button" disabled>
                 <Square aria-hidden="true" />
@@ -182,10 +205,10 @@ export function DirectorInterface() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                data-instruction="Create a shallow crouch with both feet planted, reach my left hand forward at shoulder height and extend my right hand to the side. Hold for four seconds."
+                data-instruction="Create three playful full-body poses in sequence with both feet planted: a disco point with one hand high and the other low; a low surfer stance with asymmetric outstretched arms and a sideways lean; then a triumphant overhead V. Hold each for two seconds. Keep the pelvis at the observed height or lower, preserve the exact observed foot positions, and keep all hand targets comfortably inside measured reach."
               >
                 <PersonStanding aria-hidden="true" />
-                Invent a pose
+                Disco, surf, celebrate
               </Button>
               <Button
                 variant="secondary"
@@ -200,48 +223,11 @@ export function DirectorInterface() {
                 variant="secondary"
                 size="sm"
                 type="button"
-                data-instruction="Walk to (-6, 6), run to (-3, 10), then stop facing the small box."
+                data-instruction="Run to a clear approach, jump over the small box, then run to the vault and vault over it."
               >
-                <Move3D aria-hidden="true" />
-                Choose coordinates
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                type="button"
-                data-instruction="Run behind the small box, then walk to the vault and vault over it."
-              >
-                Route and vault
+                Run, jump, vault
               </Button>
             </div>
-          </div>
-          <section className="shared-queue">
-            <div className="section-heading">
-              <Users aria-hidden="true" />
-              <h2>One character, everyone’s ideas</h2>
-            </div>
-            <p id="queue-status">Commands run one at a time, in order.</p>
-            <p className="queue-caption">Active command</p>
-            <p id="active-instruction">Ready for the next command.</p>
-            <ol id="instruction-queue"></ol>
-            <Button variant="outline" id="clear-queue" type="button" disabled>
-              <ListX aria-hidden="true" />
-              Clear waiting commands
-            </Button>
-            <details>
-              <summary>Recent commands</summary>
-              <ul id="recent-outcomes"></ul>
-            </details>
-          </section>
-          <div className="execution">
-            <div className="section-heading">
-              <Sparkles aria-hidden="true" />
-              <h2>Gemini’s plan</h2>
-            </div>
-            <p id="status" role="status" aria-live="polite">
-              Connecting to the gym…
-            </p>
-            <ol id="plan"></ol>
           </div>
           <details className="spatial-targets">
             <summary id="spatial-target-summary">
@@ -286,10 +272,6 @@ export function DirectorInterface() {
                 alt="Live overview rendered for Gemini at the start of the most recent planning request"
               />
             </a>
-            <p className="planning-caption mt-2 text-xs text-muted-foreground">
-              A fresh overview is sent with the current geometry when your
-              command reaches the front of the queue.
-            </p>
           </details>
           <p id="body-target-details" aria-live="polite"></p>
           <details id="body-coordinates" hidden>
@@ -301,57 +283,23 @@ export function DirectorInterface() {
             <dl id="body-coordinate-list"></dl>
             <p id="body-tracking-details"></p>
           </details>
-          <details className="target-controls">
-            <summary>Read the target markers</summary>
-            <p>
-              Blue points and the dashed route are Gemini’s generated
-              coordinates. The arrow shows its final heading. Pink dots mark
-              Gemini’s hand and foot constraints. Amber marks a generated
-              surface goal; the line shows the hand’s remaining distance. Cyan
-              ghosts are the actual body targets: newly built Gemini poses
-              during pose commands, or motion-asset targets while walking and
-              interacting.
-            </p>
+          <details className="command-history">
+            <summary>
+              Commands <span id="queue-count" />
+            </summary>
+            <p id="queue-status">No commands waiting.</p>
+            <p className="queue-caption">Current instruction</p>
+            <p id="active-instruction">Ready for the next instruction.</p>
+            <ol id="instruction-queue" />
+            <Button variant="outline" id="clear-queue" type="button" disabled>
+              <ListX aria-hidden="true" />
+              Clear waiting commands
+            </Button>
+            <details>
+              <summary>Recent instructions</summary>
+              <ul id="recent-outcomes" />
+            </details>
           </details>
-          <section
-            id="how-it-works"
-            className="division-of-work"
-            aria-label="How the character is directed"
-          >
-            <h2>From instruction to motion</h2>
-            <ol className="model-pipeline">
-              <li>
-                <Eye aria-hidden="true" />
-                <div>
-                  <strong>Gemini sees the scene</strong>
-                  <p>
-                    A fresh image, object geometry and the character’s current
-                    position.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <Move3D aria-hidden="true" />
-                <div>
-                  <strong>Gemini generates targets</strong>
-                  <p>
-                    Routes, headings, hand and foot positions, pelvis height and
-                    lean.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <PersonStanding aria-hidden="true" />
-                <div>
-                  <strong>MotionBricks makes it move</strong>
-                  <p>
-                    IK builds the pose. The motion model generates the
-                    transition. Gym interactions use authored assets.
-                  </p>
-                </div>
-              </li>
-            </ol>
-          </section>
           <Button
             variant="ghost"
             className="self-start"
@@ -362,9 +310,6 @@ export function DirectorInterface() {
             <RotateCcw aria-hidden="true" />
             Reset the gym
           </Button>
-          <p className="project-credit">
-            An independent experiment with Gemini and NVIDIA MotionBricks.
-          </p>
         </aside>
       </main>
     </>

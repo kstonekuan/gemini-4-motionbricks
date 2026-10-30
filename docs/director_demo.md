@@ -75,7 +75,13 @@ its target. Expand **Body target coordinates** for the numerical constraints and
 the pelvis distance just before hold. IK solve accuracy and pre-hold motion
 tracking are reported separately.
 
-Enter an instruction and select **Queue command**. Examples:
+The plan board above the scene shows planning/repair progress and the current
+execution step. Gemini supplies a short label for each step; the board keeps the
+underlying action visible below it. Older plans without labels remain supported.
+The optional **Commands** section contains waiting instructions and history.
+**See pose** moves the camera to a closer front view for inspecting body targets.
+
+Enter an instruction and select **Direct character**. Examples:
 
 - Walk beside the yellow wall and reach my left hand to its top west corner nearest the seat. Hold for five seconds.
 - Reach my right hand to the yellow wall’s top west corner nearest the overhead bar.
@@ -85,7 +91,7 @@ Enter an instruction and select **Queue command**. Examples:
 - Circle the seat clockwise once at a radius of three meters, then face the bar.
 - Run behind the small box, then walk to the vault and vault over it.
 
-**Queue command** appends an instruction to the single shared character's queue.
+**Direct character** appends an instruction to the single shared character's queue.
 All viewers see the same active command, waiting list and five recent outcomes.
 Up to eight instructions can wait; a full queue returns HTTP 429. The instruction
 is sent to Gemini only when its turn starts, using the scene and body state at

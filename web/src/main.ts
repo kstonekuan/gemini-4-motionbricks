@@ -465,8 +465,14 @@ function updateState(state: DirectorState): void {
   ]);
   if (queueSignature !== queueState) {
     queueSignature = queueState;
-    requiredElement("#queue-status").textContent =
-      `${state.viewerCount} viewer${state.viewerCount === 1 ? "" : "s"} · ${state.queuedInstructions.length}/8 waiting`;
+    requiredElement("#queue-status").textContent = state.queuedInstructions
+      .length
+      ? `${state.queuedInstructions.length} waiting`
+      : "No commands waiting.";
+    requiredElement("#queue-count").textContent = state.queuedInstructions
+      .length
+      ? `(${state.queuedInstructions.length} waiting)`
+      : "";
     requiredElement("#active-instruction").textContent =
       state.activeInstruction?.instruction ?? "Ready for the next command.";
     requiredElement("#instruction-queue").replaceChildren(
@@ -618,9 +624,43 @@ function updateState(state: DirectorState): void {
   const trackingDetails = requiredElement("#body-tracking-details");
   trackingDetails.textContent =
     state.bodyTarget?.beforeHoldRootError !== undefined
-      ? `Before the pose was held, the model’s pelvis was ${(state.bodyTarget.beforeHoldRootError * 100).toFixed(1)} cm from its target. Endpoint solve error above measures IK accuracy, not motion tracking.`
+      ? `Before hold: pelvis ${(state.bodyTarget.beforeHoldRootError * 100).toFixed(1)} cm from target.`
       : "";
   const currentStep = state.steps[state.stepIndex];
+  const completed = state.status.startsWith("Done.");
+  const rejected =
+    state.recentOutcomes[0]?.outcome === state.status && !completed;
+  const phase = state.planning
+    ? "planning"
+    : state.active
+      ? "running"
+      : completed
+        ? "complete"
+        : rejected
+          ? "rejected"
+          : "ready";
+  requiredElement("#plan-board").dataset.phase = phase;
+  requiredElement("#plan-board").setAttribute(
+    "aria-busy",
+    String(state.planning),
+  );
+  requiredElement("#plan-phase").textContent = state.planning
+    ? state.steps.length
+      ? "Repairing target…"
+      : "Generating plan…"
+    : state.active
+      ? `Step ${state.stepIndex + 1} of ${state.steps.length}`
+      : completed
+        ? "Complete"
+        : rejected
+          ? "Plan rejected"
+          : "Ready";
+  const instruction =
+    state.activeInstruction?.instruction ??
+    (state.steps.length ? state.recentOutcomes[0]?.instruction : "") ??
+    "";
+  requiredElement("#plan-instruction").textContent = instruction;
+  requiredElement("#plan-instruction").title = instruction;
   statusElement.textContent =
     state.active && currentStep && !state.planning
       ? `Step ${state.stepIndex + 1} of ${state.steps.length}: ${describeStep(currentStep)}`
@@ -682,7 +722,27 @@ function updateState(state: DirectorState): void {
     planElement.replaceChildren(
       ...state.steps.map((step, index) => {
         const item = document.createElement("li");
-        item.textContent = describeStep(step);
+        const label = document.createElement("strong");
+        label.textContent = step.label ?? describeStep(step);
+        const detail = document.createElement("span");
+        detail.textContent = step.label
+          ? describeStep(step)
+          : step.action === "move" || step.action === "interact"
+            ? `${step.style} · ${step.waypoints.length} waypoints`
+            : step.action === "pose"
+              ? `Hands ${step.body_pose.left_hand[2].toFixed(2)} / ${step.body_pose.right_hand[2].toFixed(2)} m high`
+              : "";
+        const content = document.createElement("div");
+        content.append(label, detail);
+        item.append(content);
+        item.dataset.state =
+          completed || index < state.stepIndex
+            ? "complete"
+            : state.active && index === state.stepIndex
+              ? "current"
+              : "upcoming";
+        if (state.active && index === state.stepIndex)
+          item.setAttribute("aria-current", "step");
         item.classList.toggle(
           "active",
           state.active && index === state.stepIndex,
@@ -691,6 +751,21 @@ function updateState(state: DirectorState): void {
       }),
     );
     planSignature = signature;
+    const activeStep = planElement.querySelector<HTMLElement>(
+      "[aria-current='step']",
+    );
+    if (state.active && activeStep) {
+      const scroller = requiredElement(".plan-scroll");
+      const stepBounds = activeStep.getBoundingClientRect();
+      const scrollBounds = scroller.getBoundingClientRect();
+      const overflow =
+        stepBounds.left < scrollBounds.left
+          ? stepBounds.left - scrollBounds.left
+          : stepBounds.right > scrollBounds.right
+            ? stepBounds.right - scrollBounds.right
+            : 0;
+      if (overflow) scroller.scrollBy({ left: overflow, behavior: "smooth" });
+    }
   }
 }
 
@@ -763,6 +838,14 @@ followButton.addEventListener("click", () => {
     camera.position.set(currentPose[0] - 6, currentPose[1] - 7, 5);
   }
 });
+requiredElement("#pose-view").addEventListener("click", () => {
+  if (!currentPose) return;
+  followCharacter = true;
+  followButton.setAttribute("aria-pressed", "true");
+  previousRoot = null;
+  controls.target.set(currentPose[0], currentPose[1], 1);
+  camera.position.set(currentPose[0] + 4, currentPose[1] - 4.5, 2.8);
+});
 requiredElement("#overview").addEventListener("click", () => {
   followCharacter = false;
   followButton.setAttribute("aria-pressed", "false");
@@ -822,8 +905,23 @@ function connect(): void {
   });
 }
 
+let viewportWidth = 0;
+let viewportHeight = 0;
 function animate(): void {
   requestAnimationFrame(animate);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (
+    width > 0 &&
+    height > 0 &&
+    (width !== viewportWidth || height !== viewportHeight)
+  ) {
+    viewportWidth = width;
+    viewportHeight = height;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
   const playback = poseTimeline.samplePose(performance.now());
   if (character && playback) {
     const { before, after, blend } = playback;
@@ -892,13 +990,6 @@ async function initialize(): Promise<void> {
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
-  const observer = new ResizeObserver(() => {
-    const { width, height } = canvas.getBoundingClientRect();
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  });
-  observer.observe(canvas);
   connect();
   animate();
 }

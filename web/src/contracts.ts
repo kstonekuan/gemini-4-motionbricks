@@ -40,6 +40,9 @@ const waypoint = z.object({
 });
 const route = z.array(waypoint).check(z.minLength(1), z.maxLength(64));
 const stepFields = {
+  label: z.optional(
+    z.nullable(z.string().check(z.minLength(1), z.maxLength(80))),
+  ),
   style: movementStyle,
   seconds: finiteNumber,
   target: z.nullable(objectName),

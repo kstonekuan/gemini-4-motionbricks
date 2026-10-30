@@ -13,3 +13,7 @@ Upstream notices are retained in the separately downloaded checkout.
 No NVIDIA pretrained models, sample motion clips, rig or scene assets are
 included in this distribution. Gemini and MotionBricks names identify the
 systems used; this project is not endorsed by Google or NVIDIA.
+
+Vendored AI Elements Plan and Shimmer components:
+Copyright 2023 Vercel, Inc. Licensed under Apache-2.0.
+https://github.com/vercel/ai-elements
